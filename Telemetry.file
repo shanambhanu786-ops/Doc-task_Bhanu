@@ -1,0 +1,24 @@
+import os
+from ddtrace import patch_all, tracer
+from ddtrace.llmobs import LLMObs
+
+# Auto-patch supported libraries (HTTP, SQLite, FastAPI)
+patch_all()
+
+def setup_datadog():
+    if os.getenv("DD_LLMOBS_ENABLED", "0") == "1":
+        LLMObs.enable(
+            ml_app=os.getenv("DD_SERVICE", "agentic-analyst"),
+            agent_host=os.getenv("DD_AGENT_HOST", "localhost"),
+            agent_port=int(os.getenv("DD_TRACE_AGENT_PORT", 8126))
+        )
+
+def trace_stage(stage_name: str):
+    """Decorator to trace workflow stages explicitly in Datadog."""
+    def decorator(func):
+        async def wrapper(*args, **kwargs):
+            with tracer.trace("agentic_step", resource=stage_name) as span:
+                span.set_tag("step.name", stage_name)
+                return await func(*args, **kwargs)
+        return wrapper
+    return decorator
